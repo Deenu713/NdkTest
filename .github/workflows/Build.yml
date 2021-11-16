@@ -1,36 +1,43 @@
-name: Attach Debug APKs To Release
+name: Build debug Apk
 
 on:
-  release:
-    types:
-      - published
+  # push:
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
+    name: Build debug apk
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Set tag
-        id: vars
-        run: echo ::set-output name=tag::${GITHUB_REF/refs\/tags\//}
-      - name: Clone repository
-        uses: actions/checkout@v2
+      - name: Cancel previous runs
+        uses: styfle/cancel-workflow-action@0.5.0
         with:
-          ref: ${{ env.GITHUB_REF }}
-      - name: Build
-        env:
-          RELEASE_TAG: ${{ steps.vars.outputs.tag }}
-        run: ./gradlew assembleDebug
-      - name: Attach debug APKs to release
-        env:
-          RELEASE_TAG: ${{ steps.vars.outputs.tag }}
-        run: >-
-          hub release edit
-          -m ""
-          -a ./app/build/outputs/apk/debug/NdkTest-universal-$RELEASE_TAG-debug.apk
-          -a ./app/build/outputs/apk/debug/NdkTest-arm64-v8a-$RELEASE_TAG-debug.apk
-          -a ./app/build/outputs/apk/debug/NdkTest-armeabi-v7a-$RELEASE_TAG-debug.apk
-          -a ./app/build/outputs/apk/debug/NdkTest-x86_64-$RELEASE_TAG-debug.apk
-          -a ./app/build/outputs/apk/debug/NdkTest-x86-$RELEASE_TAG-debug.apk
-          $RELEASE_TAG
+          access_token: ${{ github.token }}
+
+      - uses: actions/checkout@v2
+    
+      - name: set up JDK 11
+        uses: actions/setup-java@v2
+        with:
+          java-version: '11'
+          distribution: 'adopt'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build debug apk
+        uses: eskatos/gradle-command-action@v1
+        with:
+          arguments: assembleDebug
+          distributions-cache-enabled: true
+          dependencies-cache-enabled: true
+          configuration-cache-enabled: true
+
+      - name: Upload debug apk
+        uses: actions/upload-artifact@v2
+        if: ${{ !github.head_ref }}
+        with:
+          name: apk-debug
+          path: app/build/outputs/apk/debug
